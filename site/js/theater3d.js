@@ -25,7 +25,16 @@ const SEAT_COLORS = {
   hover: { color: 0xff5a5a, emissive: 0x401010 },
 };
 
-const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+// reusable math objects for the gyro
+const _euler = new THREE.Euler();
+const _zAxis = new THREE.Vector3(0, 0, 1);
+const _qBack = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -90° around X
+const _qScreen = new THREE.Quaternion();
+const _qDelta = new THREE.Quaternion();
+const _qTmp = new THREE.Quaternion();
+const _qTarget = new THREE.Quaternion();
+
+const easeInOutCubic =(t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 export class Theater3D {
   constructor(canvas, { onSeatClick, onSeatHover } = {}) {
@@ -76,8 +85,88 @@ export class Theater3D {
     new ResizeObserver(this._resize).observe(canvas.parentElement);
     this._resize();
 
+    // gyro (device orientation) look-around for phones, used in seat POV
+    this.gyro = { enabled: false, device: null, base: null, camBase: null, received: false };
+    this._onOrientation = this._onOrientation.bind(this);
+
     this.clock = new THREE.Clock();
     renderer.setAnimationLoop(() => this._tick());
+  }
+
+  // ---------- gyro ----------
+  static gyroSupported() {
+    return typeof window !== "undefined" && "DeviceOrientationEvent" in window &&
+      window.matchMedia("(pointer: coarse)").matches;
+  }
+
+  /** Must be called from a user gesture (iOS asks for permission). Resolves true when sensors work. */
+  async enableGyro() {
+    if (!("DeviceOrientationEvent" in window)) return false;
+    if (typeof DeviceOrientationEvent.requestPermission === "function") {
+      try {
+        if ((await DeviceOrientationEvent.requestPermission()) !== "granted") return false;
+      } catch { return false; }
+    }
+    this.gyro.received = false;
+    window.addEventListener("deviceorientation", this._onOrientation);
+    // confirm the device actually sends readings (desktops/insecure pages don't)
+    const ok = await new Promise((res) => {
+      const t0 = performance.now();
+      const check = () => {
+        if (this.gyro.received) return res(true);
+        if (performance.now() - t0 > 1500) return res(false);
+        requestAnimationFrame(check);
+      };
+      check();
+    });
+    if (!ok) { window.removeEventListener("deviceorientation", this._onOrientation); return false; }
+    this.gyro.enabled = true;
+    this.recenterGyro();
+    if (this.mode === "pov" && !this.anim) this.controls.enabled = false;
+    return true;
+  }
+
+  disableGyro() {
+    window.removeEventListener("deviceorientation", this._onOrientation);
+    const wasOn = this.gyro.enabled;
+    this.gyro.enabled = false;
+    this.gyro.device = null;
+    if (wasOn && this.mode === "pov" && !this.anim) {
+      // hand control back to touch-drag, facing the screen again
+      if (this.gyro.camBase) this.camera.quaternion.copy(this.gyro.camBase);
+      this.controls.enabled = true;
+      this.controls.update();
+    }
+  }
+
+  /** Current phone pose becomes "looking at the screen". */
+  recenterGyro() {
+    this.gyro.base = null; // captured from the next reading
+    this.gyro.camBase = this.camera.quaternion.clone();
+  }
+
+  _onOrientation(e) {
+    if (e.alpha == null && e.beta == null && e.gamma == null) return;
+    this.gyro.received = true;
+    const d = THREE.MathUtils.DEG2RAD;
+    const orient = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * d;
+    // standard device-orientation -> camera quaternion (camera looks out of the back of the phone)
+    const q = this.gyro.device || new THREE.Quaternion();
+    _euler.set((e.beta || 0) * d, (e.alpha || 0) * d, -(e.gamma || 0) * d, "YXZ");
+    q.setFromEuler(_euler);
+    q.multiply(_qBack);
+    q.multiply(_qScreen.setFromAxisAngle(_zAxis, -orient));
+    this.gyro.device = q;
+  }
+
+  _applyGyro() {
+    const g = this.gyro;
+    if (!g.device || !g.camBase) return;
+    if (!g.base) g.base = g.device.clone();
+    // rotation the phone made in the real world since the reference pose
+    _qDelta.copy(g.device).multiply(_qTmp.copy(g.base).invert());
+    _qTarget.copy(_qDelta).multiply(g.camBase);
+    this.camera.quaternion.slerp(_qTarget, 0.35); // smooth sensor jitter
   }
 
   _setupLights() {
@@ -261,6 +350,12 @@ export class Theater3D {
     }
     c.enabled = true;
     c.update();
+    if (mode === "pov" && this.gyro.enabled) {
+      // new seat: whatever way the phone points now = facing the screen
+      this.camera.lookAt(to.look);
+      this.recenterGyro();
+      c.enabled = false;
+    }
   }
 
   _setOverviewLimits() {
@@ -373,6 +468,8 @@ export class Theater3D {
       cam.fov = THREE.MathUtils.lerp(a.from.fov, a.to.fov * (this.portraitBoost || 1), k);
       cam.updateProjectionMatrix();
       if (a.t >= 1) this._finishFly();
+    } else if (this.mode === "pov" && this.gyro.enabled) {
+      this._applyGyro();
     } else {
       this.controls.update();
       if (this.mode === "overview") this._clampOverview();

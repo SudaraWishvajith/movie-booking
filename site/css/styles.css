@@ -207,3 +207,18 @@ button { font: inherit; }
   .movie-info h3 { font-size: 15px; }
 }
 .seat.hover3d { transform: scale(1.35); box-shadow: 0 0 0 2px #fff; }
+
+/* gyro controls */
+.viewer-actions { flex-wrap: wrap; justify-content: flex-end; max-width: calc(100% - 28px); }
+#btnGyro[aria-pressed="true"] { background: var(--accent); color: #1b1307; border-color: var(--accent); }
+.viewer-toast {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+  background: rgba(10,10,12,.8); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.15);
+  padding: 8px 14px; border-radius: 999px; font-size: 13px; white-space: nowrap; max-width: calc(100% - 24px);
+  overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+}
+@media (max-width: 640px) {
+  .viewer-hud { top: auto; bottom: 14px; }
+  .hud-seat { font-size: 24px; }
+  .viewer-toast { bottom: auto; top: 104px; }
+}

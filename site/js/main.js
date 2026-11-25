@@ -292,7 +292,13 @@ function showSeatInfo(node, taken) {
   const s = seatByNode.get(node);
   const tier = priceFor(s.row);
   $("#hudSeat").textContent = `Row ${s.row} · Seat ${s.number}`;
-  $("#hudHint").textContent = taken ? "Already taken — preview only" : `${tier.label} · ${fmtMoney(tier.price)} · drag to look around`;
+  const how = gyroOn ? "move your phone to look around" : "drag to look around";
+  $("#hudHint").textContent = taken ? `Already taken — preview only · ${how}` : `${tier.label} · ${fmtMoney(tier.price)} · ${how}`;
+  $("#btnRecenter").hidden = !gyroOn;
+  if (Theater3D.gyroSupported() && !gyroOn && !gyroHintShown) {
+    gyroHintShown = true;
+    toast("Tip: tap 📱 Gyro and move your phone to look around");
+  }
   const st = theater.seatStats(node);
   if (!st) return;
   $("#viewStats").hidden = false;
@@ -307,8 +313,49 @@ function showSeatInfo(node, taken) {
   $("#statRating").textContent = rating;
 }
 
+// ---------------- gyro look-around (phones) ----------------
+let gyroOn = false;
+let gyroHintShown = false;
+let toastTimer = null;
+function toast(msg, ms = 3200) {
+  const el = $("#viewerToast");
+  el.textContent = msg; el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, ms);
+}
+function setGyroUi(on) {
+  gyroOn = on;
+  $("#btnGyro").setAttribute("aria-pressed", String(on));
+  $("#btnRecenter").hidden = !(on && state.focus);
+  if (state.focus) showSeatInfo(state.focus, state.taken.has(state.focus));
+}
+if (Theater3D.gyroSupported()) $("#btnGyro").hidden = false;
+
+$("#btnGyro").addEventListener("click", async () => {
+  if (gyroOn) {
+    theater.disableGyro();
+    setGyroUi(false);
+    toast("Gyro off · drag to look around");
+    return;
+  }
+  const ok = await theater.enableGyro(); // needs the tap for iOS permission
+  if (!ok) {
+    toast(window.isSecureContext ? "Motion sensors aren't available on this device" : "Gyro needs the site on HTTPS");
+    return;
+  }
+  setGyroUi(true);
+  toast(state.focus ? "Gyro on · move your phone to look around" : "Gyro on · pick a seat to try it");
+});
+
+$("#btnRecenter").addEventListener("click", () => {
+  if (!state.focus) return;
+  theater.flyToSeat(state.focus); // re-aims at the screen and resets the phone's reference
+  toast("Re-centered on the screen");
+});
+
 $("#btnOverview").addEventListener("click", () => {
   state.focus = null;
+  $("#btnRecenter").hidden = true;
   theater.flyToOverview();
   $("#hudSeat").textContent = "Overview";
   $("#hudHint").textContent = "Drag to look around · click a seat to see its view";
