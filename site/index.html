@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Starlight Cinema — Book your seat</title>
+  <meta name="description" content="Pick your movie, showtime and see the exact view from your seat in 3D before you book." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="#top"><span class="brand-star">★</span> Starlight<span class="brand-sub">Cinema</span></a>
+    <nav>
+      <a href="#movies">Now Showing</a>
+      <a href="#booking">Book Seats</a>
+      <a href="#about">The Hall</a>
+    </nav>
+    <a class="btn btn-sm" href="#booking">Book now</a>
+  </header>
+
+  <section class="hero" id="top">
+    <div class="hero-bg"></div>
+    <div class="hero-content">
+      <p class="eyebrow">Hall 1 · Dolby-style immersive sound · 264 seats</p>
+      <h1>See your seat<br />before you sit in it.</h1>
+      <p class="lead">Pick a showtime, tap any seat and fly straight into its view of the screen in 3D. No more guessing if the front row is too close.</p>
+      <div class="hero-cta">
+        <a class="btn" href="#movies">Browse movies</a>
+        <a class="btn btn-ghost" href="#booking">Try the 3D seat view</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="movies">
+    <div class="section-head">
+      <h2>Now Showing</h2>
+      <p>Choose a movie to start booking.</p>
+    </div>
+    <div class="movie-grid" id="movieGrid"></div>
+  </section>
+
+  <section class="section booking" id="booking">
+    <div class="section-head">
+      <h2>Book your seats</h2>
+      <p id="bookingMovieLabel">Select a movie, date and time.</p>
+    </div>
+
+    <div class="picker">
+      <div class="picker-row">
+        <span class="picker-label">Movie</span>
+        <div class="chips" id="movieChips"></div>
+      </div>
+      <div class="picker-row">
+        <span class="picker-label">Date</span>
+        <div class="chips" id="dateChips"></div>
+      </div>
+      <div class="picker-row">
+        <span class="picker-label">Time</span>
+        <div class="chips" id="timeChips"></div>
+      </div>
+    </div>
+
+    <div class="booking-layout">
+      <div class="viewer-card">
+        <div class="viewer" id="viewer">
+          <canvas id="scene"></canvas>
+          <div class="viewer-loading" id="viewerLoading">
+            <div class="spinner"></div>
+            <span id="loadingText">Loading the hall…</span>
+          </div>
+          <div class="viewer-hud">
+            <div class="hud-seat" id="hudSeat">Overview</div>
+            <div class="hud-hint" id="hudHint">Drag to look around · click a seat to see its view</div>
+          </div>
+          <div class="viewer-actions">
+            <button class="btn btn-sm btn-ghost" id="btnOverview" title="Back to overview">⤢ Overview</button>
+          </div>
+        </div>
+        <div class="view-stats" id="viewStats" hidden>
+          <div><span class="stat-label">Distance to screen</span><span class="stat-val" id="statDist">–</span></div>
+          <div><span class="stat-label">Screen fills</span><span class="stat-val" id="statAngle">–</span></div>
+          <div><span class="stat-label">Off-center</span><span class="stat-val" id="statOff">–</span></div>
+          <div><span class="stat-label">View</span><span class="stat-val" id="statRating">–</span></div>
+        </div>
+      </div>
+
+      <aside class="seat-panel">
+        <div class="seatmap-wrap">
+          <div class="seatmap-screen">SCREEN</div>
+          <div class="seatmap" id="seatMap"></div>
+        </div>
+        <div class="legend">
+          <span><i class="sw sw-free"></i>Available</span>
+          <span><i class="sw sw-prem"></i>Premium</span>
+          <span><i class="sw sw-sel"></i>Selected</span>
+          <span><i class="sw sw-taken"></i>Taken</span>
+        </div>
+        <div class="summary">
+          <div class="summary-row"><span>Seats</span><strong id="sumSeats">None selected</strong></div>
+          <div class="summary-row"><span>Tickets</span><strong id="sumCount">0</strong></div>
+          <div class="summary-row total"><span>Total</span><strong id="sumTotal">$0.00</strong></div>
+          <button class="btn btn-block" id="btnCheckout" disabled>Continue</button>
+          <p class="fine">Tap a seat to preview its view. Tap again to deselect. Max 10 seats.</p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="section about" id="about">
+    <div class="section-head">
+      <h2>The Hall</h2>
+    </div>
+    <div class="features">
+      <div class="feature"><h3>16 m screen</h3><p>2.39:1 widescreen with steep stadium seating, so every row sees over the one in front.</p></div>
+      <div class="feature"><h3>Immersive sound</h3><p>Stage towers, four subwoofers, wall and rear surrounds plus 12 overhead speakers.</p></div>
+      <div class="feature"><h3>Comfort seating</h3><p>Reclined backs, padded armrests and cup holders at every seat. Premium rows I–L sit at screen-center height.</p></div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <span>★ Starlight Cinema</span>
+    <span>Demo booking site · no payment is taken</span>
+  </footer>
+
+  <dialog class="modal" id="checkoutModal">
+    <form method="dialog" class="modal-body" id="checkoutForm">
+      <h3>Confirm booking</h3>
+      <div class="modal-summary" id="modalSummary"></div>
+      <label>Name<input name="name" required autocomplete="name" placeholder="Your name" /></label>
+      <label>Email<input name="email" type="email" required autocomplete="email" placeholder="you@example.com" /></label>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="btn" value="confirm" id="btnConfirm">Confirm booking</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="ticketModal">
+    <div class="modal-body ticket" id="ticketBody"></div>
+  </dialog>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
