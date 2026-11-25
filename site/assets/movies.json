@@ -1,0 +1,50 @@
+{
+  "_note": "Swap this file for your backend's 'now showing' feed. youtubeId = official trailer (embedding must be allowed).",
+  "movies": [
+    {
+      "id": "hunger-games-sotr",
+      "title": "The Hunger Games: Sunrise on the Reaping",
+      "genre": "Action · Sci-fi",
+      "release": "2026-11-20",
+      "youtubeId": "CINFIAohu4U",
+      "trailerSource": "The Hunger Games (official channel)",
+      "palette": ["#1a0f08", "#b5541c", "#f2c14e"]
+    },
+    {
+      "id": "godzilla-minus-zero",
+      "title": "Godzilla Minus Zero",
+      "genre": "Action · Monster",
+      "release": "2026-11-06",
+      "youtubeId": "Pu0pH5BuCPM",
+      "trailerSource": "GODZILLA OFFICIAL by TOHO",
+      "palette": ["#05070a", "#1f3b4d", "#7fd1ff"]
+    },
+    {
+      "id": "hexed",
+      "title": "Hexed",
+      "genre": "Animation · Fantasy",
+      "release": "2026-11-25",
+      "youtubeId": "SVirX5zqK7s",
+      "trailerSource": "Walt Disney Studios",
+      "palette": ["#12062a", "#6b2fbf", "#f7b2ff"]
+    },
+    {
+      "id": "ebenezer",
+      "title": "Ebenezer: A Christmas Carol",
+      "genre": "Fantasy · Drama",
+      "release": "2026-11-13",
+      "youtubeId": "VZS1zr0ASuk",
+      "trailerSource": "Paramount Pictures",
+      "palette": ["#06090c", "#2c4a52", "#e8e2c8"]
+    },
+    {
+      "id": "cat-in-the-hat",
+      "title": "The Cat in the Hat",
+      "genre": "Animation · Family",
+      "release": "2026-11-06",
+      "youtubeId": "xDSXH54InMU",
+      "trailerSource": "Cineplex Movies",
+      "palette": ["#0a1230", "#c8102e", "#ffffff"]
+    }
+  ]
+}

@@ -8,6 +8,9 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
+
+const VIDEO_PX_W = 1600; // CSS size of the trailer player; scaled down onto the 16 m screen
 
 const OVERVIEW = {
   pos: new THREE.Vector3(0, 9.6, 9.0),
@@ -76,6 +79,18 @@ export class Theater3D {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.35, 0.5, 0.82);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
+
+    // HTML layer for the YouTube trailer, positioned on the screen plane in 3D.
+    // It sits above the WebGL canvas; stadium sightlines mean nothing in the hall
+    // ever covers the screen, so no occlusion handling is needed.
+    this.cssScene = new THREE.Scene();
+    this.cssRenderer = new CSS3DRenderer();
+    const cssEl = this.cssRenderer.domElement;
+    cssEl.className = "css3d-layer";
+    canvas.insertAdjacentElement("afterend", cssEl);
+    this.videoId = null;
+    this.videoMuted = true;
+    this.videoPlaying = true;
 
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
@@ -238,6 +253,11 @@ export class Theater3D {
     // the screen gets its own unlit material so we can swap the "movie"
     this.screenMesh = root.getObjectByName("Screen");
     if (this.screenMesh) {
+      // take the screen's true size/center from the geometry (seats.json "center" is the aim point)
+      const box = new THREE.Box3().setFromObject(this.screenMesh);
+      const c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
+      this.info.screen = { ...this.info.screen, center: [c.x, c.y, c.z], widthM: size.x, heightM: size.y };
+      this.screenLight.position.set(c.x, c.y, c.z + 0.3);
       this.screenMesh.traverse((o) => {
         if (o.isMesh) {
           this.screenMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -262,6 +282,77 @@ export class Theater3D {
     this.screenMat.map = tex;
     this.screenMat.color.setScalar(1.25);
     this.screenMat.needsUpdate = true;
+  }
+
+  // ---------- trailer on the screen ----------
+  /** Play a YouTube video on the cinema screen (muted autoplay, looping). */
+  setScreenVideo(youtubeId, glowColor) {
+    if (!this.info) return;
+    if (glowColor) this.screenLight.color.set(glowColor).lerp(new THREE.Color(0xffffff), 0.5);
+    if (!youtubeId) {
+      if (this.videoObj) { this.cssScene.remove(this.videoObj); this.videoObj = null; }
+      this.videoId = null;
+      return;
+    }
+    if (!this.videoObj) {
+      const sc = this.info.screen;
+      const hPx = Math.round(VIDEO_PX_W * (sc.heightM / sc.widthM));
+      const wrap = document.createElement("div");
+      wrap.className = "screen-video";
+      wrap.style.width = `${VIDEO_PX_W}px`;
+      wrap.style.height = `${hPx}px`;
+      const iframe = document.createElement("iframe");
+      // YouTube players are 16:9; most trailers are already letterboxed scope (2.39:1)
+      // inside that, so crop the player's top/bottom to fill the scope screen exactly.
+      const fullH = Math.round((VIDEO_PX_W * 9) / 16);
+      iframe.style.height = `${fullH}px`;
+      iframe.style.top = `${Math.round((hPx - fullH) / 2)}px`;
+      iframe.title = "Movie trailer";
+      iframe.allow = "autoplay; encrypted-media; picture-in-picture";
+      iframe.setAttribute("tabindex", "-1");
+      iframe.style.opacity = "0"; // fade in once loaded so the poster card shows meanwhile
+      iframe.addEventListener("load", () => {
+        setTimeout(() => {
+          iframe.style.opacity = "1";
+          this._ytCommand(this.videoMuted ? "mute" : "unMute");
+          if (!this.videoPlaying) this._ytCommand("pauseVideo");
+        }, 1200);
+      });
+      wrap.appendChild(iframe);
+      const obj = new CSS3DObject(wrap);
+      wrap.style.pointerEvents = "none"; // CSS3DObject sets "auto"; let drags reach the canvas
+      const [cx, cy, cz] = sc.center;
+      obj.position.set(cx, cy, cz + 0.02);
+      obj.scale.setScalar(sc.widthM / VIDEO_PX_W);
+      this.cssScene.add(obj);
+      this.videoObj = obj;
+      this.iframe = iframe;
+    }
+    if (youtubeId === this.videoId) return;
+    this.videoId = youtubeId;
+    this.iframe.style.opacity = "0";
+    const params = new URLSearchParams({
+      autoplay: "1", mute: "1", controls: "0", loop: "1", playlist: youtubeId,
+      playsinline: "1", rel: "0", modestbranding: "1", iv_load_policy: "3",
+      disablekb: "1", fs: "0", enablejsapi: "1", origin: location.origin,
+    });
+    this.iframe.src = `https://www.youtube-nocookie.com/embed/${youtubeId}?${params}`;
+  }
+
+  setVideoMuted(muted) {
+    this.videoMuted = muted;
+    this._ytCommand(muted ? "mute" : "unMute");
+    if (!muted) this._ytCommand("setVolume", [80]);
+  }
+
+  setVideoPlaying(playing) {
+    this.videoPlaying = playing;
+    this._ytCommand(playing ? "playVideo" : "pauseVideo");
+  }
+
+  _ytCommand(func, args = []) {
+    if (!this.iframe || !this.iframe.contentWindow) return;
+    this.iframe.contentWindow.postMessage(JSON.stringify({ event: "command", func, args }), "*");
   }
 
   setSeatState(node, state) {
@@ -442,6 +533,7 @@ export class Theater3D {
     if (!w || !h) return;
     this.renderer.setSize(w, h, false);
     this.composer.setSize(w, h);
+    this.cssRenderer.setSize(w, h);
     this.camera.aspect = w / h;
     // keep the screen in frame on narrow (portrait) viewers
     this.portraitBoost = w / h < 1 ? 1.25 : 1;
@@ -475,5 +567,6 @@ export class Theater3D {
       if (this.mode === "overview") this._clampOverview();
     }
     this.composer.render();
+    if (this.videoObj) this.cssRenderer.render(this.cssScene, cam);
   }
 }

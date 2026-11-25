@@ -25,8 +25,10 @@ Then open http://localhost:5173
 
 ## Hooking up a real backend
 
-All the demo data is in `js/main.js`:
-- `MOVIES`, `TIMES`, `PRICES`: replace with data from your API.
+Movies live in `assets/movies.json`. Each entry has a title, genre, release date and `youtubeId`, the official trailer. The trailer plays muted and on a loop on the 3D cinema screen, and the 🔊 Sound button unmutes it. Only use videos from the studio's own channels that allow embedding. Replace this file with your API's "now showing" feed.
+
+The rest of the demo data is in `js/main.js`:
+- `TIMES` and `PRICES`: replace with data from your API.
 - `refreshShow()`: makes up the taken seats from a seeded random generator. Replace this with your API's list of booked seats for the showtime.
 - The checkout dialog's `close` handler saves bookings to `localStorage`. Replace that with a POST to your booking endpoint.
 
