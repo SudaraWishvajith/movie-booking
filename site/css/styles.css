@@ -242,3 +242,43 @@ button { font: inherit; }
 }
 .thumb:hover .play { background: var(--accent); color: #1b1307; }
 .movie-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+
+/* seat-map overlay on top of the 3D overview */
+.seat-overlay {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 24px); max-height: calc(100% - 76px); overflow: auto;
+  padding: 14px 16px 10px; border-radius: 16px;
+  background: rgba(12, 10, 14, .72); border: 1px solid rgba(255,255,255,.12);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  animation: overlay-in .35s ease;
+}
+.seat-overlay[hidden] { display: none !important; }
+@keyframes overlay-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.seat-overlay-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; font-size: 13px; }
+.seat-overlay-head span { color: var(--muted); font-size: 12px; }
+.seat-overlay .seatmap-screen { margin-bottom: 12px; }
+.seat-overlay .seatmap { min-width: 0; }
+.legend-compact { margin: 10px 0 0; gap: 10px; font-size: 11px; }
+.viewer.overlay-open .viewer-hud { display: none; }
+#btnLayout[aria-pressed="true"] { background: var(--accent); color: #1b1307; border-color: var(--accent); }
+@media (max-width: 640px) {
+  .seat-overlay { padding: 10px 8px 8px; bottom: 10px; }
+  .seat-overlay-head span { display: none; }
+}
+@media (max-width: 640px) {
+  /* the overlay is the seat map on phones; the panel keeps just the summary */
+  .seat-panel .seatmap-wrap, .seat-panel > .legend { display: none; }
+  .seat-panel .summary { border-top: 0; padding-top: 0; }
+}
+
+/* phones: the 3D view fills the screen height below the sticky nav */
+@media (max-width: 640px) {
+  .viewer {
+    aspect-ratio: auto;
+    height: calc(100vh - var(--nav-h, 64px) - 16px);             /* older browsers */
+    height: calc(100dvh - var(--nav-h, 64px) - 16px);            /* follows the browser bar */
+    min-height: 420px;
+  }
+  .viewer-card { scroll-margin-top: calc(var(--nav-h, 64px) + 8px); }
+}

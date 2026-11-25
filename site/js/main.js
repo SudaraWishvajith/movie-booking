@@ -55,13 +55,13 @@ function screenCard(m) {
 // ---------------- 3D viewer ----------------
 let seatList = [];
 const seatByNode = new Map();
-const seatEls = new Map();
+const seatEls = new Map(); // node -> [side-panel seat, overlay seat]
 
 const theater = new Theater3D($("#scene"), {
   onSeatClick: (node) => handleSeatClick(node),
   onSeatHover: (node) => {
-    seatEls.forEach((el) => el.classList.remove("hover3d"));
-    if (node && seatEls.get(node)) seatEls.get(node).classList.add("hover3d");
+    seatEls.forEach((els) => els.forEach((el) => el.classList.remove("hover3d")));
+    if (node && seatEls.get(node)) seatEls.get(node).forEach((el) => el.classList.add("hover3d"));
   },
 });
 
@@ -164,8 +164,8 @@ function refreshShow() {
 }
 
 // ---------------- seat map ----------------
-function buildSeatMap() {
-  const map = $("#seatMap"); map.innerHTML = "";
+function buildSeatMap(map) {
+  map.innerHTML = "";
   const rows = [...new Set(seatList.map((s) => s.row))];
   for (const r of rows) {
     const rowEl = document.createElement("div"); rowEl.className = "seat-row";
@@ -179,7 +179,8 @@ function buildSeatMap() {
       b.addEventListener("click", () => handleSeatClick(s.node));
       b.addEventListener("mouseenter", () => theater.setHover(s.node));
       b.addEventListener("mouseleave", () => theater.setHover(null));
-      seatEls.set(s.node, b);
+      if (!seatEls.has(s.node)) seatEls.set(s.node, []);
+      seatEls.get(s.node).push(b);
       rowEl.appendChild(b);
     });
     rowEl.insertAdjacentHTML("beforeend", `<span class="row-label">${r}</span>`);
@@ -196,8 +197,8 @@ function seatStatus(node) {
 function renderSeats() {
   for (const s of seatList) {
     const st = seatStatus(s.node);
-    const el = seatEls.get(s.node);
-    el.className = "seat" + (st === "premium" ? " premium" : "") + (st === "selected" ? " selected" : "") + (st === "taken" ? " taken" : "") + (state.focus === s.node ? " focus" : "");
+    const cls = "seat" + (st === "premium" ? " premium" : "") + (st === "selected" ? " selected" : "") + (st === "taken" ? " taken" : "") + (state.focus === s.node ? " focus" : "");
+    for (const el of seatEls.get(s.node)) el.className = cls;
     theater.setSeatState(s.node, st);
   }
 }
@@ -213,6 +214,7 @@ function handleSeatClick(node) {
   }
   // always fly into the seat to preview its view (even taken ones)
   state.focus = node;
+  updateOverlay();
   theater.flyToSeat(node);
   showSeatInfo(node, taken);
   renderSeats();
@@ -294,7 +296,7 @@ $("#btnRecenter").addEventListener("click", () => {
   toast("Re-centered on the screen");
 });
 
-$("#btnOverview").addEventListener("click", () => {
+function goOverview() {
   state.focus = null;
   $("#btnRecenter").hidden = true;
   theater.flyToOverview();
@@ -302,6 +304,29 @@ $("#btnOverview").addEventListener("click", () => {
   $("#hudHint").textContent = "Drag to look around · click a seat to see its view";
   $("#viewStats").hidden = true;
   renderSeats();
+  updateOverlay();
+}
+$("#btnOverview").addEventListener("click", goOverview);
+
+// ---------------- seat-map overlay on the 3D overview ----------------
+let layoutOn = true;
+let hallReady = false;
+function updateOverlay() {
+  const show = hallReady && layoutOn && !state.focus;
+  $("#seatOverlay").hidden = !show;
+  $("#viewer").classList.toggle("overlay-open", show);
+  $("#btnLayout").setAttribute("aria-pressed", String(layoutOn));
+  $("#btnOverview").hidden = !state.focus; // only useful from a seat view
+}
+$("#btnLayout").addEventListener("click", () => {
+  if (state.focus) {
+    // from a seat view, the button always means "back to the map"
+    layoutOn = true;
+    goOverview();
+    return;
+  }
+  layoutOn = !layoutOn;
+  updateOverlay();
 });
 
 // ---------------- summary & checkout ----------------
@@ -351,6 +376,11 @@ $("#checkoutModal").addEventListener("close", () => {
   updateSummary();
 });
 
+// keep --nav-h in sync with the sticky header so the phone 3D view fits exactly below it
+const setNavH = () => document.documentElement.style.setProperty("--nav-h", `${$(".nav").offsetHeight}px`);
+setNavH();
+window.addEventListener("resize", setNavH);
+
 // ---------------- init ----------------
 buildDates();
 buildTimes();
@@ -369,9 +399,12 @@ fetch("assets/movies.json")
   .then((info) => {
     seatList = info.seats;
     seatList.forEach((s) => seatByNode.set(s.node, s));
-    buildSeatMap();
+    buildSeatMap($("#seatMap"));
+    buildSeatMap($("#overlayMap"));
     selectMovie(state.movie);
     $("#viewerLoading").classList.add("hidden");
+    hallReady = true;
+    updateOverlay();
   })
   .catch((err) => {
     console.error(err);

@@ -84,12 +84,27 @@
             <div class="hud-hint" id="hudHint">Drag to look around · click a seat to see its view</div>
           </div>
           <div class="viewer-actions">
+            <button class="btn btn-sm btn-ghost" id="btnLayout" title="Show the seat layout" aria-pressed="true">▦ Seat map</button>
             <button class="btn btn-sm btn-ghost" id="btnSound" title="Trailer sound" aria-pressed="false">🔇 Sound</button>
             <button class="btn btn-sm btn-ghost" id="btnRecenter" title="Face the screen again" hidden>⟲ Re-center</button>
             <button class="btn btn-sm btn-ghost" id="btnGyro" title="Look around by moving your phone" aria-pressed="false" hidden>📱 Gyro</button>
             <button class="btn btn-sm btn-ghost" id="btnOverview" title="Back to overview">⤢ Overview</button>
           </div>
           <div class="viewer-toast" id="viewerToast" hidden></div>
+          <div class="seat-overlay" id="seatOverlay" hidden>
+            <div class="seat-overlay-head">
+              <strong>Pick a seat</strong>
+              <span>Tap any seat to see its view</span>
+            </div>
+            <div class="seatmap-screen">SCREEN</div>
+            <div class="seatmap" id="overlayMap"></div>
+            <div class="legend legend-compact">
+              <span><i class="sw sw-free"></i>Available</span>
+              <span><i class="sw sw-prem"></i>Premium</span>
+              <span><i class="sw sw-sel"></i>Selected</span>
+              <span><i class="sw sw-taken"></i>Taken</span>
+            </div>
+          </div>
         </div>
         <p class="trailer-credit" id="trailerCredit"></p>
         <div class="view-stats" id="viewStats" hidden>

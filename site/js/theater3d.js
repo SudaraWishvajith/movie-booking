@@ -187,13 +187,18 @@ export class Theater3D {
   _setupLights() {
     RectAreaLightUniformsLib.init();
     const s = this.scene;
-    s.add(new THREE.HemisphereLight(0xffe2c8, 0x140a0c, 0.55));
+    // House lights fade between "on" (overview) and "show" (sitting in a seat).
+    // Each entry: the thing to change, its full value, and its value with the lights down.
+    this.house = { level: 1, target: 1, lights: [], mats: [] };
+    const dimmable = (light, dimTo) => { this.house.lights.push({ light, on: light.intensity, off: dimTo }); return light; };
 
-    // light spilling off the movie screen
+    s.add(dimmable(new THREE.HemisphereLight(0xffe2c8, 0x140a0c, 0.55), 0.03));
+
+    // light spilling off the movie screen (kept soft so it doesn't wash the walls)
     const screenLight = new THREE.RectAreaLight(0xffc9a0, 3.2, 16, 6.7);
     screenLight.position.set(0, 5.55, -12.6);
     screenLight.lookAt(0, 5.55, 0);
-    s.add(screenLight);
+    s.add(dimmable(screenLight, 1.4));
     this.screenLight = screenLight;
 
     // warm wall sconces (mirrors the Blender layout)
@@ -203,13 +208,31 @@ export class Theater3D {
       for (const x of [-9.4, 9.4]) {
         const p = new THREE.PointLight(0xffb070, 6, 9, 1.6);
         p.position.set(x, y, z);
-        s.add(p);
+        s.add(dimmable(p, 0)); // sconces go dark during the show
       }
     }
-    // dim house lights from the ceiling
+    // house lights from the ceiling
     const dir = new THREE.DirectionalLight(0xffe0c0, 0.35);
     dir.position.set(2, 12, 4);
-    s.add(dir);
+    s.add(dimmable(dir, 0.03));
+  }
+
+  /** Lights down (true) or up (false); fades over about a second and a half. */
+  setHouseLightsDown(down) {
+    this.house.target = down ? 0 : 1;
+  }
+
+  _updateHouseLights(dt) {
+    const h = this.house;
+    if (h.level === h.target) return;
+    const step = dt / 1.4; // seconds for a full fade
+    h.level = h.target > h.level ? Math.min(h.target, h.level + step) : Math.max(h.target, h.level - step);
+    const k = h.level * h.level * (3 - 2 * h.level); // smoothstep
+    for (const e of h.lights) e.light.intensity = e.off + (e.on - e.off) * k;
+    for (const e of h.mats) e.mat.emissiveIntensity = e.off + (e.on - e.off) * k;
+    // softer glow and a darker exposure during the show (the trailer is HTML, so it's unaffected)
+    this.bloom.strength = 0.08 + (0.35 - 0.08) * k;
+    this.renderer.toneMappingExposure = 0.8 + (1.05 - 0.8) * k;
   }
 
   async load(glbUrl, seatsUrl, onProgress) {
@@ -225,8 +248,21 @@ export class Theater3D {
 
     // one shared material per seat status
     let fabricTemplate = null;
+    // share of each glow kept with the lights down (step/stage LEDs off, exit signs just readable)
+    const houseGlow = { Downlight: 0.02, SconceGlow: 0.03, StepLED: 0.0, ExitSign: 0.08 };
+    const seenMats = new Set();
     root.traverse((o) => {
-      if (o.isMesh && o.material && o.material.name === "SeatFabric") fabricTemplate = o.material;
+      if (!o.isMesh || !o.material) return;
+      if (o.material.name === "SeatFabric") fabricTemplate = o.material;
+      const keep = houseGlow[o.material.name];
+      if (keep !== undefined && !seenMats.has(o.material)) {
+        seenMats.add(o.material);
+        // the lamp surface itself is dark; all its brightness comes from the glow,
+        // so it truly goes dark when the glow fades
+        o.material.color.setScalar(0.03);
+        const on = o.material.emissiveIntensity;
+        this.house.mats.push({ mat: o.material, on, off: on * keep });
+      }
     });
     this.seatMats = {};
     for (const [k, v] of Object.entries(SEAT_COLORS)) {
@@ -393,11 +429,13 @@ export class Theater3D {
     const pose = this.seatPose(node);
     if (!pose) return;
     this.currentSeat = node;
+    this.setHouseLightsDown(true);
     this._flyTo(pose, "pov");
   }
 
   flyToOverview() {
     this.currentSeat = null;
+    this.setHouseLightsDown(false);
     this._flyTo({ pos: OVERVIEW.pos.clone(), look: OVERVIEW.look.clone(), fov: OVERVIEW.fov }, "overview");
   }
 
@@ -535,13 +573,28 @@ export class Theater3D {
     this.composer.setSize(w, h);
     this.cssRenderer.setSize(w, h);
     this.camera.aspect = w / h;
-    // keep the screen in frame on narrow (portrait) viewers
-    this.portraitBoost = w / h < 1 ? 1.25 : 1;
+    // re-fit the field of view for the new shape (e.g. phone rotated)
+    if (!this.anim) this.camera.fov = this._fitFov(this.mode === "pov" ? POV_FOV : OVERVIEW.fov);
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Vertical FOVs above are tuned for a landscape (16:10) viewer. On taller viewers
+   * (phones) widen the vertical FOV so the same horizontal view — the whole cinema
+   * screen — still fits, capped to avoid heavy fisheye stretching.
+   */
+  _fitFov(baseV) {
+    const ref = 16 / 10;
+    const aspect = this.camera.aspect || ref;
+    if (aspect >= ref) return baseV;
+    const halfH = Math.atan(Math.tan(THREE.MathUtils.degToRad(baseV) / 2) * ref); // horizontal half-FOV at 16:10
+    const v = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(halfH) / aspect));
+    return Math.min(v, 100);
   }
 
   _tick() {
     const dt = Math.min(this.clock.getDelta(), 0.05);
+    this._updateHouseLights(dt);
     const cam = this.camera;
     if (this.anim) {
       const a = this.anim;
@@ -557,7 +610,7 @@ export class Theater3D {
       );
       const look = a.from.look.clone().lerp(a.to.look, k);
       cam.lookAt(look);
-      cam.fov = THREE.MathUtils.lerp(a.from.fov, a.to.fov * (this.portraitBoost || 1), k);
+      cam.fov = THREE.MathUtils.lerp(a.from.fov, this._fitFov(a.to.fov), k);
       cam.updateProjectionMatrix();
       if (a.t >= 1) this._finishFly();
     } else if (this.mode === "pov" && this.gyro.enabled) {
